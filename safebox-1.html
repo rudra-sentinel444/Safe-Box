@@ -1,0 +1,1795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SafeBox - Secure Vault</title>
+    <style>
+        :root {
+            --primary: #7c3aed;
+            --primary-dark: #5b21b6;
+            --secondary: #c084fc;
+            --bg-dark: #0f0720;
+            --bg-card: rgba(30, 20, 50, 0.6);
+            --glass: rgba(255, 255, 255, 0.05);
+            --border: rgba(255, 255, 255, 0.1);
+            --text-main: #ffffff;
+            --text-muted: #a78bfa;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+        html.light {
+            --bg-dark: #f3f0fa;
+            --bg-card: rgba(255, 255, 255, 0.75);
+            --glass: rgba(124, 58, 237, 0.06);
+            --border: rgba(124, 58, 237, 0.15);
+            --text-main: #241a3d;
+            --text-muted: #6d5b9e;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background: radial-gradient(circle at top right, #2e1065, var(--bg-dark));
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            display: flex;
+            justify-content: center;
+            transition: background 0.3s, color 0.3s;
+        }
+        html.light body { background: radial-gradient(circle at top right, #ded4f7, var(--bg-dark)); }
+
+        .app-container {
+            width: 100%; max-width: 480px; min-height: 100vh;
+            background: rgba(15, 7, 32, 0.8);
+            position: relative; display: flex; flex-direction: column;
+            backdrop-filter: blur(10px);
+        }
+        html.light .app-container { background: rgba(255, 255, 255, 0.55); }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .screen { display: none; animation: fadeIn 0.22s ease-out; height: 100%; flex-direction: column; }
+        .screen.active { display: flex; }
+
+        .header { padding: 20px; display: flex; justify-content: space-between; align-items: center; z-index: 10; }
+        .logo { font-size: 24px; font-weight: 800; letter-spacing: 1px; background: linear-gradient(to right, #fff, var(--secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .menu-btn { font-size: 24px; cursor: pointer; padding: 5px; background: none; border: none; color: var(--text-main); }
+
+        .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 24px; padding: 24px; margin-bottom: 20px; backdrop-filter: blur(12px); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        .card-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+        .card-sub { font-size: 14px; color: var(--text-muted); line-height: 1.5; margin-bottom: 20px; }
+
+        input, textarea {
+            width: 100%; padding: 16px; background: var(--glass); border: 1px solid var(--border);
+            border-radius: 16px; color: var(--text-main); font-size: 16px; margin-bottom: 16px; outline: none;
+        }
+        input:focus, textarea:focus { border-color: var(--primary); }
+        ::placeholder { color: var(--text-muted); opacity: 0.7; }
+
+        .btn { width: 100%; padding: 16px; border-radius: 16px; border: none; font-size: 16px; font-weight: 600; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4); }
+        .btn-primary:active { transform: scale(0.98); }
+        .btn-primary:disabled { opacity: 0.5; filter: grayscale(1); cursor: not-allowed; }
+        .btn-secondary { background: var(--glass); color: var(--text-muted); border: 1px solid var(--border); }
+        .btn-danger { background: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); }
+        .btn-sm { padding: 10px; font-size: 13px; }
+
+        .pin-dots { display: flex; justify-content: center; gap: 12px; margin-bottom: 40px; }
+        .dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--text-muted); transition: 0.2s; }
+        .dot.filled { background: var(--primary); border-color: var(--primary); box-shadow: 0 0 10px var(--primary); }
+        .dot.err { background: var(--danger); border-color: var(--danger); box-shadow: 0 0 10px var(--danger); }
+
+        .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 300px; margin: 0 auto; }
+        .num-btn { width: 70px; height: 70px; border-radius: 50%; background: var(--glass); border: 1px solid var(--border); color: var(--text-main); font-size: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
+        .num-btn:active { background: var(--primary); border-color: var(--primary); color: #fff; }
+        .num-btn:disabled, .numpad.disabled .num-btn { opacity: 0.35; pointer-events: none; }
+
+        .key-box { background: rgba(245, 158, 11, 0.1); border: 1px dashed var(--warning); color: var(--warning); padding: 16px; border-radius: 16px; font-family: monospace; word-break: break-all; text-align: center; font-size: 13px; margin: 16px 0; user-select: all; }
+        .checkbox-row { display: flex; align-items: center; gap: 12px; margin: 20px 0; cursor: pointer; }
+        .checkbox-row input { width: 20px; height: 20px; accent-color: var(--primary); margin: 0; }
+
+        .storage-widget { background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(192, 132, 252, 0.1)); border-radius: 20px; padding: 20px; margin-bottom: 24px; position: relative; overflow: hidden; }
+        .storage-bar-bg { background: rgba(255,255,255,0.1); height: 6px; border-radius: 3px; margin-top: 10px; overflow: hidden; }
+        .storage-bar-fill { background: var(--secondary); height: 100%; width: 0%; transition: width 0.35s ease-out; }
+
+        .grid-menu { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        .grid-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; padding: 20px; display: flex; flex-direction: column; align-items: center; text-align: center; cursor: pointer; transition: 0.2s; }
+        .grid-item:active { transform: scale(0.96); background: var(--glass); }
+        .grid-icon { font-size: 32px; margin-bottom: 12px; }
+        .grid-label { font-weight: 600; font-size: 14px; }
+        .grid-count { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+        .file-list { margin-top: 10px; }
+        .file-item { background: var(--bg-card); padding: 14px; border-radius: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 14px; border: 1px solid var(--border); }
+        .file-thumb { width: 50px; height: 50px; border-radius: 12px; background: var(--glass); object-fit: cover; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+        .file-info { flex: 1; min-width: 0; }
+        .file-name { font-weight: 500; font-size: 14px; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .file-meta { font-size: 12px; color: var(--text-muted); }
+        .action-icon { font-size: 20px; cursor: pointer; padding: 8px; background: none; border: none; color: var(--text-main); }
+
+        .side-menu { position: fixed; top: 0; left: -100%; width: 80%; height: 100%; background: #1e1b4b; z-index: 200; transition: 0.3s; padding: 20px; box-shadow: 5px 0 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; overflow-y: auto; }
+        html.light .side-menu { background: #ffffff; }
+        .side-menu.open { left: 0; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 150; display: none; }
+        .overlay.open { display: block; }
+        .user-profile { display: flex; align-items: center; gap: 12px; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+        .avatar { width: 40px; height: 40px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; }
+        .menu-item { padding: 14px 0; color: var(--text-muted); font-size: 15px; display: flex; align-items: center; gap: 12px; cursor: pointer; background: none; border: none; width: 100%; text-align: left; }
+        .menu-item:hover { color: var(--text-main); }
+
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(15, 7, 32, 0.9); backdrop-filter: blur(10px); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 12px 0; max-width: 480px; margin: 0 auto; z-index: 100; display: none; }
+        html.light .bottom-nav { background: rgba(255,255,255,0.85); }
+        .nav-item { text-align: center; color: var(--text-muted); font-size: 11px; cursor: pointer; background: none; border: none; }
+        .nav-item.active { color: var(--primary); }
+        .nav-icon { font-size: 22px; display: block; margin-bottom: 4px; }
+
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--border); gap: 12px; }
+        .toggle-row .toggle-label { font-size: 14px; }
+        .toggle-row .toggle-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+        .switch { position: relative; display: inline-block; width: 50px; height: 28px; flex-shrink: 0; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--glass); transition: .2s; border-radius: 34px; border: 1px solid var(--border); }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: .2s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary); border-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(22px); }
+        input:disabled + .slider { opacity: 0.4; cursor: not-allowed; }
+
+        #toast { visibility: hidden; min-width: 250px; max-width: 90%; background: var(--bg-card); color: var(--text-main); text-align: center; border-radius: 12px; padding: 14px; position: fixed; z-index: 400; left: 50%; bottom: 80px; transform: translateX(-50%); border: 1px solid var(--border); opacity: 0; transition: opacity 0.3s, bottom 0.3s; }
+        #toast.show { visibility: visible; opacity: 1; bottom: 100px; }
+
+        /* Modal */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 500; display: none; align-items: flex-end; justify-content: center; }
+        .modal-overlay.open { display: flex; }
+        .modal-sheet { width: 100%; max-width: 480px; background: #1a1030; border-radius: 24px 24px 0 0; padding: 24px; max-height: 88vh; overflow-y: auto; box-shadow: 0 -10px 40px rgba(0,0,0,0.5); animation: slideUp 0.25s ease-out; }
+        html.light .modal-sheet { background: #ffffff; }
+        @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-close { text-align: right; }
+        .modal-close span { cursor: pointer; font-size: 22px; color: var(--text-muted); padding: 6px; }
+        .modal-step { display: none; }
+        .modal-step.active { display: block; }
+
+        .preview-modal { position: fixed; inset: 0; background: #000; z-index: 600; display: none; flex-direction: column; }
+        .preview-modal.open { display: flex; }
+        .preview-topbar { display: flex; justify-content: space-between; align-items: center; padding: 16px; }
+        .preview-body { flex: 1; display: flex; align-items: center; justify-content: center; overflow: auto; padding: 10px; }
+        .preview-body img, .preview-body video { max-width: 100%; max-height: 100%; border-radius: 8px; }
+        .preview-body audio { width: 90%; }
+        .preview-text { white-space: pre-wrap; color: #fff; padding: 20px; width: 100%; max-height: 100%; overflow-y: auto; font-size: 15px; line-height: 1.6; }
+
+        .lockout-banner { background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); color: var(--danger); border-radius: 14px; padding: 12px; text-align: center; font-size: 13px; margin-top: 16px; }
+        .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .fake-badge { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); background: var(--warning); color: #1a1030; font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 0 0 8px 8px; z-index: 250; letter-spacing: 0.5px; }
+        video#intruderVideo { position: fixed; top: -9999px; left: -9999px; width: 1px; height: 1px; }
+    </style>
+
+    <!-- Firebase Auth (Google + Email/Password sign-in) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-analytics.js";
+        import {
+            getAuth, GoogleAuthProvider, signInWithPopup,
+            createUserWithEmailAndPassword, signInWithEmailAndPassword,
+            onAuthStateChanged, signOut, setPersistence, browserLocalPersistence,
+            updateProfile, EmailAuthProvider, reauthenticateWithCredential,
+            reauthenticateWithPopup, updatePassword as fbUpdatePassword, deleteUser
+        } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCG1OUw6SZiPx2xWpNg4SE7vkkHImnaHjQ",
+            authDomain: "safe-box-1dee3.firebaseapp.com",
+            projectId: "safe-box-1dee3",
+            storageBucket: "safe-box-1dee3.firebasestorage.app",
+            messagingSenderId: "806031281571",
+            appId: "1:806031281571:web:f5f318af944dc0e37bde16",
+            measurementId: "G-P0G03W1J95"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        try { getAnalytics(app); } catch (e) { /* analytics can fail without a real hostname, ignore */ }
+        const auth = getAuth(app);
+
+        let resolveAuthReady;
+        window.__authReadyPromise = new Promise(res => { resolveAuthReady = res; });
+
+        setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+        onAuthStateChanged(auth, (user) => {
+            if (resolveAuthReady) { resolveAuthReady(user); resolveAuthReady = null; }
+        });
+
+        // Exposed bridge for the classic (non-module) app script below.
+        window.SafeAuth = {
+            ready() { return window.__authReadyPromise; },
+            getUser() { return auth.currentUser; },
+            async signInWithGoogle() {
+                const provider = new GoogleAuthProvider();
+                const result = await signInWithPopup(auth, provider);
+                return result.user;
+            },
+            async signUpOrSignIn(email, password) {
+                try {
+                    const cred = await createUserWithEmailAndPassword(auth, email, password);
+                    return cred.user;
+                } catch (err) {
+                    if (err && err.code === 'auth/email-already-in-use') {
+                        const cred = await signInWithEmailAndPassword(auth, email, password);
+                        return cred.user;
+                    }
+                    throw err;
+                }
+            },
+            async signOut() { await signOut(auth); },
+            getUserInfo() {
+                const u = auth.currentUser;
+                if (!u) return null;
+                const isGoogle = (u.providerData || []).some(p => p.providerId === 'google.com');
+                return {
+                    email: u.email || '',
+                    displayName: u.displayName || '',
+                    photoURL: u.photoURL || '',
+                    provider: isGoogle ? 'google' : 'password',
+                    creationTime: (u.metadata && u.metadata.creationTime) || null
+                };
+            },
+            async updateDisplayName(name) {
+                if (!auth.currentUser) throw new Error('Not signed in');
+                await updateProfile(auth.currentUser, { displayName: name });
+            },
+            async changePassword(currentPassword, newPassword) {
+                const u = auth.currentUser;
+                if (!u) throw new Error('Not signed in');
+                const cred = EmailAuthProvider.credential(u.email, currentPassword);
+                await reauthenticateWithCredential(u, cred);
+                await fbUpdatePassword(u, newPassword);
+            },
+            async deleteAccount(currentPassword) {
+                const u = auth.currentUser;
+                if (!u) throw new Error('Not signed in');
+                const isGoogle = (u.providerData || []).some(p => p.providerId === 'google.com');
+                if (isGoogle) {
+                    await reauthenticateWithPopup(u, new GoogleAuthProvider());
+                } else {
+                    const cred = EmailAuthProvider.credential(u.email, currentPassword);
+                    await reauthenticateWithCredential(u, cred);
+                }
+                await deleteUser(u);
+            }
+        };
+    </script>
+</head>
+<body>
+
+<div class="app-container">
+
+    <div class="overlay" id="overlay" onclick="toggleMenu()"></div>
+    <div class="side-menu" id="sideMenu">
+        <div class="user-profile">
+            <div class="avatar">U</div>
+            <div>
+                <div style="font-weight: 600;">Hello, User</div>
+                <div style="font-size: 12px; color: var(--text-muted);" id="menuModeLabel">Stay Safe!</div>
+            </div>
+        </div>
+        <button class="menu-item" onclick="goTo('screen-home'); toggleMenu()">🏠 Home</button>
+        <button class="menu-item" onclick="openCategory('all'); toggleMenu()">📂 All Files</button>
+        <button class="menu-item" onclick="openCategory('recycle'); toggleMenu()">🗑️ Recycle Bin</button>
+        <button class="menu-item" onclick="goTo('screen-security'); toggleMenu()">🛡️ Security</button>
+        <button class="menu-item" onclick="goTo('screen-settings'); toggleMenu()">⚙️ Settings</button>
+        <button class="menu-item" onclick="lockNow()" style="color: var(--danger);">🔒 Lock Now</button>
+        <button class="menu-item" onclick="handleSignOut()" style="color: var(--danger);">🚪 Sign Out</button>
+        <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid var(--border);">
+            <div class="toggle-row" style="border:none;">
+                <span>Dark Mode</span>
+                <label class="switch"><input type="checkbox" id="menuDarkToggle" onchange="setDarkMode(this.checked)"><span class="slider"></span></label>
+            </div>
+        </div>
+    </div>
+
+    <div class="header" id="mainHeader">
+        <button class="menu-btn" onclick="toggleMenu()">☰</button>
+        <div class="logo">SAFEBOX</div>
+        <div class="menu-btn"></div>
+    </div>
+
+    <!-- 1. WELCOME -->
+    <div id="screen-welcome" class="screen active">
+        <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px;">
+            <div style="font-size: 70px; margin-bottom: 20px;">🔐</div>
+            <h1 style="font-size: 28px; margin-bottom: 10px;">SAFEBOX</h1>
+            <p style="color: var(--text-muted); margin-bottom: 40px;">Your Privacy, Our Priority<br>All your important things<br><span style="color: var(--primary); font-weight: 600;">Safe & Secure</span></p>
+            <button class="btn btn-primary" onclick="goTo('screen-auth')">Get Started →</button>
+        </div>
+    </div>
+
+    <!-- 1.5 ACCOUNT (Google / Email sign-in, runs before vault PIN setup) -->
+    <div id="screen-auth" class="screen">
+        <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 20px;">
+            <div style="position:absolute; top:20px; left:20px;"><button class="action-icon" onclick="goTo('screen-welcome')">←</button></div>
+            <div style="text-align: center; margin-bottom: 24px;">
+                <div style="font-size: 50px; margin-bottom: 10px;">🔐</div>
+                <h2 class="card-title">Sign In to Continue</h2>
+                <p class="card-sub">Link an account first — you'll set your vault PIN right after.</p>
+            </div>
+            <button class="btn btn-secondary" id="btnGoogleSignIn" onclick="handleGoogleSignIn()">🔵 Continue with Google</button>
+            <div style="display:flex; align-items:center; gap:12px; margin: 20px 0; color: var(--text-muted); font-size:12px;">
+                <div style="flex:1; height:1px; background: var(--border);"></div>OR<div style="flex:1; height:1px; background: var(--border);"></div>
+            </div>
+            <input type="email" id="authEmail" placeholder="Email address" autocomplete="email">
+            <input type="password" id="authPassword" placeholder="Create a password" autocomplete="new-password">
+            <button class="btn btn-primary" id="btnEmailContinue" onclick="handleEmailContinue()">Continue →</button>
+            <p id="authMsg" style="text-align: center; margin-top: 16px; color: var(--danger); height: 20px; font-size: 13px;"></p>
+        </div>
+    </div>
+
+    <!-- 2. PIN SETUP -->
+    <div id="screen-pin-setup" class="screen">
+        <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 20px;">
+            <div style="position:absolute; top:20px; left:20px;"><button class="action-icon" onclick="cancelSetup()">←</button></div>
+            <h2 class="card-title" style="text-align: center;" id="setupTitle">Create Your PIN</h2>
+            <p class="card-sub" style="text-align: center;" id="setupSub">This PIN encrypts your vault. There is no reset without your Master Key — memorize it.</p>
+            <div class="pin-dots" id="setupDots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+            <div class="numpad" id="setupNumpad">
+                <div class="num-btn" onclick="addPinDigit(1)">1</div><div class="num-btn" onclick="addPinDigit(2)">2</div><div class="num-btn" onclick="addPinDigit(3)">3</div>
+                <div class="num-btn" onclick="addPinDigit(4)">4</div><div class="num-btn" onclick="addPinDigit(5)">5</div><div class="num-btn" onclick="addPinDigit(6)">6</div>
+                <div class="num-btn" onclick="addPinDigit(7)">7</div><div class="num-btn" onclick="addPinDigit(8)">8</div><div class="num-btn" onclick="addPinDigit(9)">9</div>
+                <div class="num-btn" style="visibility: hidden;"></div><div class="num-btn" onclick="addPinDigit(0)">0</div><div class="num-btn" onclick="deletePinDigit()">⌫</div>
+            </div>
+            <p id="pinMsg" style="text-align: center; margin-top: 20px; color: var(--danger); height: 20px;"></p>
+        </div>
+    </div>
+
+    <!-- 3. MASTER KEY -->
+    <div id="screen-recovery-key" class="screen">
+        <div style="padding: 20px; overflow-y: auto;">
+            <h2 class="card-title">⚠️ Save This Key!</h2>
+            <p class="card-sub">This is the only way to recover your vault if you forget your PIN. We do not store it — if you lose it, your data cannot be recovered.</p>
+            <div class="key-box" id="displayKey">Generating...</div>
+            <div style="background: rgba(245, 158, 11, 0.1); padding: 12px; border-radius: 12px; font-size: 12px; color: var(--text-muted); margin-bottom: 20px;">
+                • We cannot recover this for you.<br>• Save it in a password manager or write it on paper.<br>• Anyone with this key can reset your PIN.
+            </div>
+            <button class="btn btn-secondary" onclick="copyKey()">📋 Copy to Clipboard</button>
+            <label class="checkbox-row"><input type="checkbox" id="checkSaved" onchange="toggleContinueBtn()"><span class="checkbox-label">I have saved this key securely</span></label>
+            <button id="btnFinishSetup" class="btn btn-primary" disabled onclick="finishSetup()">Enter Vault →</button>
+        </div>
+    </div>
+
+    <!-- 4. LOGIN -->
+    <div id="screen-login" class="screen">
+        <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <div style="font-size: 50px; margin-bottom: 10px;">🔐</div>
+                <h2 class="card-title">Enter Your PIN</h2>
+                <p class="card-sub">Your data is encrypted on this device only</p>
+            </div>
+            <div class="pin-dots" id="loginDots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+            <div class="numpad" id="loginNumpad">
+                <div class="num-btn" onclick="addLoginDigit(1)">1</div><div class="num-btn" onclick="addLoginDigit(2)">2</div><div class="num-btn" onclick="addLoginDigit(3)">3</div>
+                <div class="num-btn" onclick="addLoginDigit(4)">4</div><div class="num-btn" onclick="addLoginDigit(5)">5</div><div class="num-btn" onclick="addLoginDigit(6)">6</div>
+                <div class="num-btn" onclick="addLoginDigit(7)">7</div><div class="num-btn" onclick="addLoginDigit(8)">8</div><div class="num-btn" onclick="addLoginDigit(9)">9</div>
+                <div class="num-btn" style="visibility: hidden;"></div><div class="num-btn" onclick="addLoginDigit(0)">0</div><div class="num-btn" onclick="deleteLoginDigit()">⌫</div>
+            </div>
+            <p id="loginMsg" style="text-align: center; margin-top: 20px; color: var(--danger); height: 20px;"></p>
+            <div id="lockoutBanner" class="lockout-banner" style="display:none;"></div>
+            <button class="btn btn-secondary" style="margin-top: 20px; display:none;" id="btnBiometric" onclick="tryBiometricLogin()">👆 Use Biometric</button>
+            <button class="btn btn-secondary" style="margin-top: 12px;" onclick="goTo('screen-recover')">Forgot PIN?</button>
+        </div>
+    </div>
+
+    <!-- 5. RECOVER -->
+    <div id="screen-recover" class="screen">
+        <div style="padding: 20px; overflow-y:auto;">
+            <div style="margin-bottom:10px;"><button class="action-icon" onclick="goTo('screen-login')">←</button></div>
+            <h2 class="card-title">Recover With Key</h2>
+            <p class="card-sub">Enter your Master Key to set a new PIN. This is the only recovery path.</p>
+            <textarea id="recoveryInput" rows="4" placeholder="Paste Master Key here..."></textarea>
+            <input type="password" id="newPinInput" placeholder="New PIN (4 digits)" maxlength="4" inputmode="numeric">
+            <input type="password" id="newPinConfirm" placeholder="Confirm New PIN" maxlength="4" inputmode="numeric">
+            <button class="btn btn-primary" onclick="recoverAccount()" id="btnRecover">Verify & Reset PIN</button>
+            <p id="recoverMsg" style="text-align:center; color: var(--danger); font-size: 13px; margin-top: 10px;"></p>
+        </div>
+    </div>
+
+    <!-- 6. HOME -->
+    <div id="screen-home" class="screen">
+        <div style="padding: 20px; overflow-y: auto; padding-bottom: 80px;">
+            <div class="storage-widget">
+                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-muted);">Storage Used</div>
+                        <div style="font-size: 24px; font-weight: 700;" id="storageText">0 KB</div>
+                        <div style="font-size: 12px; color: var(--text-muted);" id="storagePercent">0% Used</div>
+                    </div>
+                    <div style="font-size: 40px; opacity: 0.5;">🧊</div>
+                </div>
+                <div class="storage-bar-bg"><div class="storage-bar-fill" id="storageBar"></div></div>
+            </div>
+            <h3 style="margin-bottom: 16px; font-size: 16px;">Vault Categories</h3>
+            <div class="grid-menu">
+                <div class="grid-item" onclick="openCategory('photos')"><div class="grid-icon">📷</div><div class="grid-label">Photos</div><div class="grid-count" id="count-photos">0 items</div></div>
+                <div class="grid-item" onclick="openCategory('videos')"><div class="grid-icon">🎥</div><div class="grid-label">Videos</div><div class="grid-count" id="count-videos">0 items</div></div>
+                <div class="grid-item" onclick="openCategory('docs')"><div class="grid-icon">📄</div><div class="grid-label">Documents</div><div class="grid-count" id="count-docs">0 items</div></div>
+                <div class="grid-item" onclick="openCategory('audio')"><div class="grid-icon">🎵</div><div class="grid-label">Audio</div><div class="grid-count" id="count-audio">0 items</div></div>
+                <div class="grid-item" onclick="openCategory('notes')" style="grid-column: span 2;"><div class="grid-icon">📝</div><div class="grid-label">Notes</div><div class="grid-count" id="count-notes">0 items</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7. CATEGORY -->
+    <div id="screen-category" class="screen">
+        <div style="padding: 20px; padding-bottom: 80px; overflow-y:auto;">
+            <div style="display: flex; align-items: center; margin-bottom: 20px;">
+                <button class="action-icon" onclick="goTo('screen-home')" style="padding:0; margin-right: 10px;">←</button>
+                <h2 class="card-title" style="margin:0;" id="catTitle">Photos</h2>
+            </div>
+
+            <div class="card" id="addCard" style="padding: 20px; text-align: center; border: 2px dashed var(--border); cursor: pointer;" onclick="document.getElementById('fileInput').click()">
+                <div style="font-size: 30px; margin-bottom: 10px;">➕</div>
+                <div style="font-weight: 600; color: var(--primary);">Add to Vault</div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">Encrypted with AES-256-GCM before saving</div>
+                <input type="file" id="fileInput" multiple style="display: none;" onchange="handleFiles(this)">
+            </div>
+            <div class="card" id="noteCard" style="display:none; text-align:center; cursor:pointer;" onclick="openNoteEditor(null)">
+                <div style="font-weight:600; color: var(--primary);">➕ New Note</div>
+            </div>
+
+            <div class="file-list" id="fileListContainer"></div>
+        </div>
+    </div>
+
+    <!-- 8. SECURITY -->
+    <div id="screen-security" class="screen">
+        <div style="padding: 20px; padding-bottom: 80px; overflow-y:auto;">
+            <h2 class="card-title" style="margin-bottom: 20px;">Security</h2>
+
+            <div class="card" style="text-align: center; margin-bottom: 24px;">
+                <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 5px;">Security Level</div>
+                <div style="font-size: 20px; font-weight: 700; color: var(--success);" id="securityLevelText">Strong</div>
+                <div class="storage-bar-bg" style="margin: 10px auto; width: 150px;"><div class="storage-bar-fill" id="securityLevelBar" style="width: 100%; background: var(--success);"></div></div>
+            </div>
+
+            <div class="card">
+                <div class="toggle-row"><span>Change PIN</span><button class="action-icon" onclick="openChangePin()">›</button></div>
+                <div class="toggle-row">
+                    <div><div class="toggle-label">Biometric Lock</div><div class="toggle-sub" id="bioSub">Checking device support…</div></div>
+                    <label class="switch"><input type="checkbox" id="bioToggle" onchange="onBioToggle(this)"><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <div><div class="toggle-label">Fake Vault</div><div class="toggle-sub" id="fakeVaultSub">Not configured</div></div>
+                    <label class="switch"><input type="checkbox" id="fakeVaultToggle" onchange="onFakeVaultToggle(this)"><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <div><div class="toggle-label">Intruder Selfie</div><div class="toggle-sub">Capture a photo on wrong PIN</div></div>
+                    <label class="switch"><input type="checkbox" id="intruderToggle" onchange="onSettingToggle('intruderSelfie', this.checked)"><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row" style="border:none;">
+                    <div><div class="toggle-label">Auto-Lock</div><div class="toggle-sub">Lock when app is backgrounded</div></div>
+                    <label class="switch"><input type="checkbox" id="autoLockToggle" onchange="onSettingToggle('autoLock', this.checked)"><span class="slider"></span></label>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top: 20px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+                    <span style="font-size: 12px; color: var(--text-muted);">Break-in Attempts</span>
+                    <button class="action-icon" style="font-size:12px; color: var(--text-muted);" onclick="clearIntruderLog()">Clear</button>
+                </div>
+                <div id="intruderLogList"><div style="font-size:13px; color: var(--text-muted); text-align:center; padding: 10px 0;">No break-in attempts recorded.</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 9. SETTINGS -->
+    <div id="screen-settings" class="screen">
+        <div style="padding: 20px; padding-bottom: 80px; overflow-y:auto;">
+            <h2 class="card-title" style="margin-bottom: 20px;">Settings</h2>
+
+            <div class="card" style="display:flex; align-items:center; gap:14px; cursor:pointer;" onclick="goTo('screen-profile')">
+                <div id="settingsAvatar" style="width:52px; height:52px; border-radius:50%; background: var(--primary); display:flex; align-items:center; justify-content:center; font-size:24px; flex-shrink:0;">🔒</div>
+                <div style="flex:1; min-width:0;">
+                    <div id="settingsName" style="font-weight:700; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">My Profile</div>
+                    <div id="settingsEmail" style="font-size:12px; color: var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Tap to view and edit</div>
+                </div>
+                <span class="action-icon">›</span>
+            </div>
+
+            <h3 style="margin: 20px 0 10px; font-size: 13px; color: var(--text-muted);">PREFERENCES</h3>
+            <div class="card">
+                <div class="toggle-row"><span>Dark Mode</span><label class="switch"><input type="checkbox" id="settingsDarkToggle" onchange="setDarkMode(this.checked)"><span class="slider"></span></label></div>
+                <div class="toggle-row"><span>Notifications</span><label class="switch"><input type="checkbox" id="notifToggle" onchange="onSettingToggle('notifications', this.checked)"><span class="slider"></span></label></div>
+                <div class="toggle-row" style="border:none;">
+                    <span>Auto-Lock Timer</span>
+                    <select id="autoLockDelaySelect" onchange="onAutoLockDelayChange(this.value)" style="background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 13px;">
+                        <option value="0">Immediately</option>
+                        <option value="60">After 1 minute</option>
+                        <option value="300">After 5 minutes</option>
+                    </select>
+                </div>
+            </div>
+
+            <h3 style="margin: 20px 0 10px; font-size: 13px; color: var(--text-muted);">SECURITY & DATA</h3>
+            <div class="card">
+                <div class="toggle-row"><span>Security & Privacy</span><button class="action-icon" onclick="goTo('screen-security')">›</button></div>
+                <div class="toggle-row"><span>Change Password</span><button class="action-icon" onclick="openChangePasswordModal()">›</button></div>
+                <div class="toggle-row"><span>Recycle Bin</span><button class="action-icon" onclick="openCategory('recycle')">›</button></div>
+                <div class="toggle-row"><span>Backup Vault (Export)</span><button class="action-icon" onclick="exportBackup()">⭳</button></div>
+                <div class="toggle-row" style="border:none;">
+                    <span>Restore Vault (Import)</span>
+                    <button class="action-icon" onclick="document.getElementById('importBackupInput').click()">⭱</button>
+                    <input type="file" id="importBackupInput" accept="application/json" style="display:none;" onchange="importBackup(this)">
+                </div>
+            </div>
+
+            <h3 style="margin: 20px 0 10px; font-size: 13px; color: var(--text-muted);">ABOUT</h3>
+            <div class="card">
+                <div class="toggle-row"><span>App Version</span><span style="color: var(--text-muted); font-size: 13px;">1.0.0</span></div>
+                <div class="toggle-row" style="border:none;"><span>Clear Temporary Cache</span><button class="action-icon" onclick="clearCache()">›</button></div>
+            </div>
+
+            <h3 style="margin: 20px 0 10px; font-size: 13px; color: var(--danger);">DANGER ZONE</h3>
+            <div class="card">
+                <div class="toggle-row"><span style="color: var(--danger);">Erase All Vault Files</span><button class="action-icon" style="color: var(--danger);" onclick="wipeData()">›</button></div>
+                <div class="toggle-row"><span style="color: var(--danger);">Factory Reset (Delete Everything)</span><button class="action-icon" style="color: var(--danger);" onclick="factoryReset()">›</button></div>
+                <div class="toggle-row" style="border:none;"><span style="color: var(--danger);">Delete Account Permanently</span><button class="action-icon" style="color: var(--danger);" onclick="openDeleteAccountModal()">›</button></div>
+            </div>
+
+            <p style="text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 20px;">
+                SafeBox never uploads your files anywhere. Everything lives, AES-256-GCM encrypted, only on this device. Not even SafeBox can read your data.
+            </p>
+        </div>
+    </div>
+
+    <!-- 9.5 PROFILE -->
+    <div id="screen-profile" class="screen">
+        <div style="padding: 20px; padding-bottom: 80px; overflow-y:auto;">
+            <div style="display: flex; align-items: center; margin-bottom: 20px;">
+                <button class="action-icon" onclick="goTo('screen-settings')" style="padding:0; margin-right: 10px;">←</button>
+                <h2 class="card-title" style="margin:0;">My Profile</h2>
+            </div>
+
+            <div class="card" style="text-align:center;">
+                <div id="profileAvatarBig" onclick="openAvatarPicker()" style="width:84px; height:84px; border-radius:50%; background: var(--primary); display:flex; align-items:center; justify-content:center; font-size:38px; margin: 0 auto 8px; cursor:pointer;">🔒</div>
+                <div style="font-size:12px; color: var(--text-muted); margin-bottom: 16px;">Tap avatar to change</div>
+                <input type="text" id="profileNameInput" placeholder="Your name" maxlength="40" style="text-align:center;">
+                <button class="btn btn-primary" style="margin-top: 10px;" onclick="saveProfile()">Save Changes</button>
+                <p id="profileMsg" style="text-align:center; margin-top: 10px; color: var(--success); font-size: 13px; height: 18px;"></p>
+            </div>
+
+            <div class="card" style="margin-top: 20px;">
+                <div class="toggle-row"><span>Email</span><span id="profileEmail" style="color: var(--text-muted); font-size: 13px;">—</span></div>
+                <div class="toggle-row"><span>Signed in with</span><span id="profileProvider" style="color: var(--text-muted); font-size: 13px;">—</span></div>
+                <div class="toggle-row" style="border:none;"><span>Member Since</span><span id="profileSince" style="color: var(--text-muted); font-size: 13px;">—</span></div>
+            </div>
+
+            <div class="card" style="margin-top: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-muted);">Storage Used</div>
+                        <div style="font-size: 20px; font-weight: 700;" id="profileStorageText">0 KB</div>
+                    </div>
+                    <div style="font-size: 30px; opacity: 0.5;">🧊</div>
+                </div>
+                <div class="storage-bar-bg"><div class="storage-bar-fill" id="profileStorageBar"></div></div>
+            </div>
+
+            <div id="avatarPickerRow" style="display:none; flex-wrap: wrap; gap: 10px; justify-content:center; margin-top: 16px;"></div>
+        </div>
+    </div>
+
+    <div class="bottom-nav" id="bottomNav">
+        <button class="nav-item active" onclick="goTo('screen-home')"><span class="nav-icon">🏠</span>Home</button>
+        <button class="nav-item" onclick="openCategory('all')"><span class="nav-icon">📂</span>Files</button>
+        <button class="nav-item" onclick="goTo('screen-security')"><span class="nav-icon">🛡️</span>Security</button>
+        <button class="nav-item" onclick="goTo('screen-settings')"><span class="nav-icon">⚙️</span>Settings</button>
+    </div>
+
+    <div id="toast">Message</div>
+    <div class="fake-badge" id="fakeBadge" style="display:none;">DECOY VAULT</div>
+    <video id="intruderVideo" autoplay muted playsinline></video>
+    <canvas id="intruderCanvas" style="display:none;"></canvas>
+</div>
+
+<!-- CHANGE PIN MODAL -->
+<div class="modal-overlay" id="modalChangePin">
+    <div class="modal-sheet">
+        <div class="modal-close"><span onclick="closeModal('modalChangePin')">✕</span></div>
+        <h2 class="card-title">Change PIN</h2>
+        <div class="modal-step active" id="cpStep1">
+            <p class="card-sub">Enter your current PIN</p>
+            <input type="password" id="cpCurrent" maxlength="4" inputmode="numeric" placeholder="Current PIN">
+            <button class="btn btn-primary" onclick="changePinStep1()">Continue</button>
+        </div>
+        <div class="modal-step" id="cpStep2">
+            <p class="card-sub">Choose a new PIN</p>
+            <input type="password" id="cpNew1" maxlength="4" inputmode="numeric" placeholder="New PIN">
+            <input type="password" id="cpNew2" maxlength="4" inputmode="numeric" placeholder="Confirm New PIN">
+            <button class="btn btn-primary" onclick="changePinStep2()">Save New PIN</button>
+        </div>
+        <p id="cpMsg" style="text-align:center; color: var(--danger); font-size: 13px; margin-top: 10px;"></p>
+    </div>
+</div>
+
+<!-- FAKE VAULT SETUP MODAL -->
+<div class="modal-overlay" id="modalFakeVault">
+    <div class="modal-sheet">
+        <div class="modal-close"><span onclick="closeModal('modalFakeVault')">✕</span></div>
+        <h2 class="card-title">Set Up Fake Vault</h2>
+        <p class="card-sub">Choose a different PIN. Entering this PIN opens an empty decoy vault instead of your real one — useful if someone forces you to unlock your phone.</p>
+        <input type="password" id="fvPin1" maxlength="4" inputmode="numeric" placeholder="Decoy PIN">
+        <input type="password" id="fvPin2" maxlength="4" inputmode="numeric" placeholder="Confirm Decoy PIN">
+        <button class="btn btn-primary" onclick="saveFakeVaultSetup()">Enable Fake Vault</button>
+        <p id="fvMsg" style="text-align:center; color: var(--danger); font-size: 13px; margin-top: 10px;"></p>
+    </div>
+</div>
+
+<!-- CHANGE PASSWORD MODAL -->
+<div class="modal-overlay" id="modalChangePassword">
+    <div class="modal-sheet">
+        <div class="modal-close"><span onclick="closeModal('modalChangePassword')">✕</span></div>
+        <h2 class="card-title">Change Password</h2>
+        <p class="card-sub" id="cpwHint">Enter your current password and choose a new one.</p>
+        <input type="password" id="cpwCurrent" placeholder="Current password" autocomplete="current-password">
+        <input type="password" id="cpwNew1" placeholder="New password" autocomplete="new-password">
+        <input type="password" id="cpwNew2" placeholder="Confirm new password" autocomplete="new-password">
+        <button class="btn btn-primary" id="cpwBtn" onclick="submitChangePassword()">Update Password</button>
+        <p id="cpwMsg" style="text-align:center; color: var(--danger); font-size: 13px; margin-top: 10px;"></p>
+    </div>
+</div>
+
+<!-- DELETE ACCOUNT MODAL -->
+<div class="modal-overlay" id="modalDeleteAccount">
+    <div class="modal-sheet">
+        <div class="modal-close"><span onclick="closeModal('modalDeleteAccount')">✕</span></div>
+        <h2 class="card-title" style="color: var(--danger);">Delete Account</h2>
+        <p class="card-sub">This permanently deletes your sign-in account and wipes every file in this vault from this device. This cannot be undone.</p>
+        <input type="password" id="delAccPassword" placeholder="Enter your password to confirm" autocomplete="current-password">
+        <button class="btn btn-primary" style="background: var(--danger);" onclick="confirmDeleteAccount()">Delete My Account</button>
+        <p id="delAccMsg" style="text-align:center; color: var(--danger); font-size: 13px; margin-top: 10px;"></p>
+    </div>
+</div>
+
+<!-- NOTE EDITOR MODAL -->
+<div class="modal-overlay" id="modalNote">
+    <div class="modal-sheet">
+        <div class="modal-close"><span onclick="closeModal('modalNote')">✕</span></div>
+        <h2 class="card-title">Note</h2>
+        <input type="text" id="noteTitle" placeholder="Title">
+        <textarea id="noteBody" rows="8" placeholder="Write your note..."></textarea>
+        <button class="btn btn-primary" onclick="saveNote()">Save Note</button>
+    </div>
+</div>
+
+<!-- PREVIEW MODAL -->
+<div class="preview-modal" id="previewModal">
+    <div class="preview-topbar">
+        <button class="action-icon" style="color:#fff;" onclick="closePreview()">← Back</button>
+        <button class="action-icon" style="color:#fff;" id="previewDownloadBtn" onclick="downloadCurrentPreview()">⬇️ Download</button>
+    </div>
+    <div class="preview-body" id="previewBody"></div>
+</div>
+
+<script>
+/* =========================================================
+   SafeBox — Production build
+   Zero-knowledge design: the PIN and Master Key are never
+   stored anywhere, in any form. A random "vault key" encrypts
+   all file data with AES-256-GCM. The vault key itself is
+   "wrapped" (encrypted) twice — once with a key derived from
+   the PIN, once with a key derived from the Master Key — and
+   only those two wrapped blobs are stored. Unlocking is simply
+   "try to unwrap with what the user typed"; there is nothing
+   to compare PINs against, so nothing to leak.
+   ========================================================= */
+
+// ---------- Base64 helpers ----------
+function bufToB64(buf) {
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+}
+function b64ToBuf(b64) {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes.buffer;
+}
+
+// ---------- IndexedDB ----------
+const DB_NAME = 'safeboxDB';
+const DB_VERSION = 1;
+let dbInstance = null;
+
+function openDatabase() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta');
+            if (!db.objectStoreNames.contains('vaultFiles')) db.createObjectStore('vaultFiles', { keyPath: 'id' });
+            if (!db.objectStoreNames.contains('fakeFiles')) db.createObjectStore('fakeFiles', { keyPath: 'id' });
+            if (!db.objectStoreNames.contains('intruderLog')) db.createObjectStore('intruderLog', { keyPath: 'id' });
+        };
+        req.onsuccess = (e) => resolve(e.target.result);
+        req.onerror = (e) => reject(e.target.error);
+    });
+}
+async function getDB() { if (!dbInstance) dbInstance = await openDatabase(); return dbInstance; }
+
+function idbGet(storeName, key) {
+    return getDB().then(db => new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const req = tx.objectStore(storeName).get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+    }));
+}
+function idbPut(storeName, value, key) {
+    return getDB().then(db => new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const req = key !== undefined ? tx.objectStore(storeName).put(value, key) : tx.objectStore(storeName).put(value);
+        req.onsuccess = () => resolve(true);
+        req.onerror = () => reject(req.error);
+    }));
+}
+function idbDelete(storeName, key) {
+    return getDB().then(db => new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const req = tx.objectStore(storeName).delete(key);
+        req.onsuccess = () => resolve(true);
+        req.onerror = () => reject(req.error);
+    }));
+}
+function idbGetAll(storeName) {
+    return getDB().then(db => new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const req = tx.objectStore(storeName).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+    }));
+}
+function idbClear(storeName) {
+    return getDB().then(db => new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const req = tx.objectStore(storeName).clear();
+        req.onsuccess = () => resolve(true);
+        req.onerror = () => reject(req.error);
+    }));
+}
+
+// ---------- Crypto ----------
+const PBKDF2_ITERATIONS = 150000;
+function randomBytes(len) { return crypto.getRandomValues(new Uint8Array(len)); }
+
+async function deriveKeyFromPassphrase(passphrase, saltBytes) {
+    const enc = new TextEncoder().encode(passphrase);
+    const baseKey = await crypto.subtle.importKey('raw', enc, 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: saltBytes, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+        baseKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+    );
+}
+async function generateVaultKeyMaterial() {
+    const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+    const raw = new Uint8Array(await crypto.subtle.exportKey('raw', key));
+    return raw;
+}
+async function importVaultKey(rawBytes) {
+    return crypto.subtle.importKey('raw', rawBytes, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+}
+async function wrapVaultKey(vaultKeyRaw, passKey) {
+    const iv = randomBytes(12);
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, passKey, vaultKeyRaw);
+    return { iv: bufToB64(iv), ct: bufToB64(ct) };
+}
+async function unwrapVaultKey(wrapped, passKey) {
+    try {
+        const iv = new Uint8Array(b64ToBuf(wrapped.iv));
+        const ct = b64ToBuf(wrapped.ct);
+        const raw = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, passKey, ct);
+        return new Uint8Array(raw);
+    } catch (e) { return null; }
+}
+async function encryptBuffer(vaultKey, arrayBuffer) {
+    const iv = randomBytes(12);
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, vaultKey, arrayBuffer);
+    return { iv: bufToB64(iv), ct: bufToB64(ct) };
+}
+async function decryptBuffer(vaultKey, ivB64, ctB64) {
+    const iv = new Uint8Array(b64ToBuf(ivB64));
+    const ct = b64ToBuf(ctB64);
+    return crypto.subtle.decrypt({ name: 'AES-GCM', iv }, vaultKey, ct);
+}
+
+// ---------- App state ----------
+let meta = null; // persisted, non-secret config loaded from idb 'meta'/'config'
+const runtime = {
+    mode: null,          // 'real' | 'fake' | null
+    vaultKeyRaw: null,   // Uint8Array, kept only in memory while unlocked
+    vaultKey: null,      // CryptoKey, kept only in memory while unlocked
+    pendingSetup: null,  // temp data during onboarding before persisted
+};
+let currentCategory = '';
+let tempInput = '';
+let currentPreview = null; // {name, blob, kind}
+
+const DEFAULT_SETTINGS = { intruderSelfie: true, autoLock: true, autoLockDelay: 0, darkMode: true, notifications: true };
+const DEFAULT_PROFILE = { displayName: '', avatar: '🔒' };
+
+async function loadMeta() {
+    meta = await idbGet('meta', 'config');
+    if (!meta) meta = { isSetup: false, fakeConfigured: false, bioEnabled: false, settings: { ...DEFAULT_SETTINGS }, profile: { ...DEFAULT_PROFILE } };
+    if (!meta.settings) meta.settings = { ...DEFAULT_SETTINGS };
+    if (meta.settings.autoLockDelay === undefined) meta.settings.autoLockDelay = 0;
+    if (meta.settings.notifications === undefined) meta.settings.notifications = true;
+    if (!meta.profile) meta.profile = { ...DEFAULT_PROFILE };
+}
+async function saveMeta() { await idbPut('meta', meta, 'config'); }
+
+// ---------- Init ----------
+window.onload = async function () {
+    try {
+        await loadMeta();
+        applyDarkMode(meta.settings.darkMode !== false);
+        document.getElementById('menuDarkToggle').checked = meta.settings.darkMode !== false;
+        document.getElementById('settingsDarkToggle').checked = meta.settings.darkMode !== false;
+        document.getElementById('intruderToggle').checked = meta.settings.intruderSelfie !== false;
+        document.getElementById('autoLockToggle').checked = meta.settings.autoLock !== false;
+
+        const firebaseUser = window.SafeAuth ? await window.SafeAuth.ready() : null;
+
+        if (meta.isSetup) {
+            goTo('screen-login');
+            checkLockoutState();
+            await refreshBiometricUI();
+        } else if (firebaseUser) {
+            goTo('screen-pin-setup');
+        } else {
+            goTo('screen-welcome');
+        }
+    } catch (e) {
+        console.error('Init failed', e);
+        showToast('Storage unavailable in this browser context.');
+    }
+    setupActivityTracking();
+};
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        if (runtime.mode) localStorage.setItem('sb_hidden_at', String(Date.now()));
+    } else {
+        const hiddenAt = Number(localStorage.getItem('sb_hidden_at') || 0);
+        if (runtime.mode && meta && meta.settings.autoLock !== false && hiddenAt) {
+            const elapsed = Date.now() - hiddenAt;
+            const threshold = Math.max(0, (meta.settings.autoLockDelay || 0) * 1000);
+            if (elapsed > threshold) lockNow(); // backgrounded beyond the chosen delay -> re-lock
+        }
+        localStorage.removeItem('sb_hidden_at');
+    }
+});
+function setupActivityTracking() {} // reserved for future idle-based locking
+
+// ---------- Navigation ----------
+function goTo(screenId) {
+    document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+    document.getElementById(screenId).classList.add('active');
+    const nav = document.getElementById('bottomNav');
+    const header = document.getElementById('mainHeader');
+    if (['screen-home', 'screen-category', 'screen-security', 'screen-settings', 'screen-profile'].includes(screenId)) {
+        nav.style.display = 'flex'; header.style.display = 'flex';
+    } else {
+        nav.style.display = 'none';
+        header.style.display = ['screen-welcome', 'screen-auth', 'screen-pin-setup', 'screen-login', 'screen-recover', 'screen-recovery-key'].includes(screenId) ? 'none' : 'flex';
+    }
+    if (screenId === 'screen-login') { tempInput = ''; updateDots('loginDots'); document.getElementById('loginMsg').innerText = ''; }
+    if (screenId === 'screen-pin-setup') { tempInput = ''; updateDots('setupDots'); document.getElementById('pinMsg').innerText = ''; }
+    if (screenId === 'screen-home') updateUI();
+    if (screenId === 'screen-security') renderSecurityScreen();
+    if (screenId === 'screen-settings') renderSettingsScreen();
+    if (screenId === 'screen-profile') renderProfileScreen();
+    document.getElementById('fakeBadge').style.display = (runtime.mode === 'fake') ? 'block' : 'none';
+    document.getElementById('menuModeLabel').innerText = runtime.mode === 'fake' ? 'Decoy Vault' : 'Stay Safe!';
+}
+function toggleMenu() { document.getElementById('sideMenu').classList.toggle('open'); document.getElementById('overlay').classList.toggle('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+
+// ---------- Dark mode ----------
+function applyDarkMode(isDark) { document.documentElement.classList.toggle('light', !isDark); }
+async function setDarkMode(isDark) {
+    applyDarkMode(isDark);
+    document.getElementById('menuDarkToggle').checked = isDark;
+    document.getElementById('settingsDarkToggle').checked = isDark;
+    if (meta) { meta.settings.darkMode = isDark; await saveMeta(); }
+}
+async function onSettingToggle(key, val) {
+    meta.settings[key] = val;
+    await saveMeta();
+}
+
+// ---------- Account (Google / Email sign-in) ----------
+function friendlyAuthError(e) {
+    const code = e && e.code;
+    if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') return 'Incorrect password for this email.';
+    if (code === 'auth/invalid-email') return 'That email address looks invalid.';
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return 'Sign-in was cancelled.';
+    if (code === 'auth/weak-password') return 'Choose a stronger password (6+ characters).';
+    if (code === 'auth/network-request-failed') return 'Network error — check your connection.';
+    if (code === 'auth/popup-blocked') return 'Your browser blocked the sign-in popup — allow popups and try again.';
+    return 'Something went wrong — please try again.';
+}
+async function handleGoogleSignIn() {
+    const btn = document.getElementById('btnGoogleSignIn');
+    const msg = document.getElementById('authMsg');
+    msg.innerText = '';
+    if (!window.SafeAuth) { msg.innerText = 'Sign-in is unavailable right now.'; return; }
+    btn.disabled = true;
+    try {
+        await window.SafeAuth.signInWithGoogle();
+        goTo('screen-pin-setup');
+    } catch (e) {
+        console.error(e);
+        msg.innerText = friendlyAuthError(e);
+    } finally {
+        btn.disabled = false;
+    }
+}
+async function handleEmailContinue() {
+    const email = document.getElementById('authEmail').value.trim();
+    const password = document.getElementById('authPassword').value;
+    const msg = document.getElementById('authMsg');
+    msg.innerText = '';
+    if (!email || !password) { msg.innerText = 'Enter an email and a password.'; return; }
+    if (password.length < 6) { msg.innerText = 'Password must be at least 6 characters.'; return; }
+    if (!window.SafeAuth) { msg.innerText = 'Sign-in is unavailable right now.'; return; }
+    const btn = document.getElementById('btnEmailContinue');
+    btn.disabled = true;
+    try {
+        await window.SafeAuth.signUpOrSignIn(email, password);
+        goTo('screen-pin-setup');
+    } catch (e) {
+        console.error(e);
+        msg.innerText = friendlyAuthError(e);
+    } finally {
+        btn.disabled = false;
+    }
+}
+async function handleSignOut() {
+    if (!confirm('Sign out of your account? Your vault stays encrypted on this device — you can sign back in any time.')) return;
+    toggleMenu();
+    try {
+        if (window.SafeAuth) await window.SafeAuth.signOut();
+        showToast('Signed out');
+        if (runtime.mode) lockNow(); else goTo('screen-welcome');
+    } catch (e) {
+        console.error(e);
+        showToast('Could not sign out — try again.');
+    }
+}
+
+// ---------- Profile ----------
+const AVATAR_CHOICES = ['🔒', '🦊', '🐼', '🐧', '🐯', '🦁', '🐨', '🦄', '🐵', '🐸', '🚀', '🌟', '🔥', '🌈', '🎯', '👤'];
+function avatarInitial() {
+    const name = (meta.profile && meta.profile.displayName) || '';
+    return name.trim() ? name.trim()[0].toUpperCase() : '🔒';
+}
+function currentAvatarGlyph() {
+    return (meta.profile && meta.profile.avatar) || '🔒';
+}
+async function renderSettingsScreen() {
+    const info = window.SafeAuth ? window.SafeAuth.getUserInfo() : null;
+    document.getElementById('settingsAvatar').innerText = currentAvatarGlyph();
+    document.getElementById('settingsName').innerText = (meta.profile && meta.profile.displayName) || (info && info.email) || 'My Profile';
+    document.getElementById('settingsEmail').innerText = (info && info.email) || 'Tap to view and edit';
+    document.getElementById('settingsDarkToggle').checked = meta.settings.darkMode !== false;
+    document.getElementById('notifToggle').checked = meta.settings.notifications !== false;
+    document.getElementById('autoLockDelaySelect').value = String(meta.settings.autoLockDelay || 0);
+}
+async function renderProfileScreen() {
+    const info = window.SafeAuth ? window.SafeAuth.getUserInfo() : null;
+    document.getElementById('profileAvatarBig').innerText = currentAvatarGlyph();
+    document.getElementById('profileNameInput').value = (meta.profile && meta.profile.displayName) || (info && info.displayName) || '';
+    document.getElementById('profileEmail').innerText = (info && info.email) || '—';
+    document.getElementById('profileProvider').innerText = info ? (info.provider === 'google' ? 'Google' : 'Email & Password') : '—';
+    document.getElementById('profileSince').innerText = (info && info.creationTime) ? new Date(info.creationTime).toLocaleDateString() : '—';
+    document.getElementById('profileMsg').innerText = '';
+    document.getElementById('avatarPickerRow').style.display = 'none';
+
+    const all = await idbGetAll(activeStoreName());
+    let totalBytes = 0;
+    all.forEach(f => totalBytes += (f.size || 0));
+    document.getElementById('profileStorageText').innerText = formatSize(totalBytes);
+    if (navigator.storage && navigator.storage.estimate) {
+        try {
+            const est = await navigator.storage.estimate();
+            const percent = est.quota ? Math.min((est.usage / est.quota) * 100, 100).toFixed(1) : 0;
+            document.getElementById('profileStorageBar').style.width = percent + '%';
+        } catch (e) { /* ignore */ }
+    }
+}
+function openAvatarPicker() {
+    const row = document.getElementById('avatarPickerRow');
+    if (row.style.display === 'flex') { row.style.display = 'none'; return; }
+    row.innerHTML = AVATAR_CHOICES.map(a => `<div onclick="pickAvatar('${a}')" style="width:44px; height:44px; border-radius:50%; background: var(--bg-secondary); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:20px; cursor:pointer;">${a}</div>`).join('');
+    row.style.display = 'flex';
+}
+function pickAvatar(a) {
+    document.getElementById('profileAvatarBig').innerText = a;
+    document.getElementById('avatarPickerRow').style.display = 'none';
+    document.getElementById('avatarPickerRow').dataset.selected = a;
+}
+async function saveProfile() {
+    const name = document.getElementById('profileNameInput').value.trim();
+    const avatarEl = document.getElementById('avatarPickerRow');
+    const chosenAvatar = avatarEl.dataset.selected || document.getElementById('profileAvatarBig').innerText;
+    meta.profile = meta.profile || { ...DEFAULT_PROFILE };
+    meta.profile.displayName = name;
+    meta.profile.avatar = chosenAvatar || '🔒';
+    await saveMeta();
+    try { if (window.SafeAuth && name) await window.SafeAuth.updateDisplayName(name); } catch (e) { console.warn(e); }
+    document.getElementById('profileMsg').innerText = 'Saved!';
+    setTimeout(() => { const m = document.getElementById('profileMsg'); if (m) m.innerText = ''; }, 2000);
+    showToast('Profile updated');
+}
+
+// ---------- Extra settings actions ----------
+async function onAutoLockDelayChange(val) {
+    meta.settings.autoLockDelay = parseInt(val, 10) || 0;
+    await saveMeta();
+}
+function clearCache() {
+    try {
+        localStorage.removeItem('sb_hidden_at');
+        showToast('Temporary cache cleared');
+    } catch (e) { showToast('Nothing to clear'); }
+}
+async function exportBackup() {
+    try {
+        showToast('Preparing backup…');
+        const [vaultFiles, fakeFiles] = await Promise.all([idbGetAll('vaultFiles'), idbGetAll('fakeFiles')]);
+        const backup = { app: 'SafeBox', version: 1, exportedAt: new Date().toISOString(), meta, vaultFiles, fakeFiles };
+        const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `safebox-backup-${Date.now()}.json`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        showToast('Backup file downloaded — keep it somewhere safe.');
+    } catch (e) {
+        console.error(e);
+        showToast('Backup failed — try again.');
+    }
+}
+async function importBackup(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (!confirm('Importing a backup will overwrite your current vault files and settings on this device. Continue?')) { input.value = ''; return; }
+    try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (!data || data.app !== 'SafeBox') throw new Error('Not a valid SafeBox backup file');
+        const puts = [];
+        (data.vaultFiles || []).forEach(f => puts.push(idbPut('vaultFiles', f)));
+        (data.fakeFiles || []).forEach(f => puts.push(idbPut('fakeFiles', f)));
+        await Promise.all(puts);
+        if (data.meta) { meta = data.meta; await saveMeta(); }
+        showToast('Backup restored — reloading…');
+        setTimeout(() => location.reload(), 1200);
+    } catch (e) {
+        console.error(e);
+        showToast('Could not restore this backup file.');
+    } finally {
+        input.value = '';
+    }
+}
+
+// ---------- Change password / Delete account ----------
+function openChangePasswordModal() {
+    const info = window.SafeAuth ? window.SafeAuth.getUserInfo() : null;
+    document.getElementById('cpwCurrent').value = '';
+    document.getElementById('cpwNew1').value = '';
+    document.getElementById('cpwNew2').value = '';
+    document.getElementById('cpwMsg').innerText = '';
+    if (info && info.provider === 'google') {
+        document.getElementById('cpwHint').innerText = "You signed in with Google, so there's no SafeBox password to change here — manage it from your Google Account.";
+        document.getElementById('cpwCurrent').style.display = 'none';
+        document.getElementById('cpwNew1').style.display = 'none';
+        document.getElementById('cpwNew2').style.display = 'none';
+        document.getElementById('cpwBtn').style.display = 'none';
+    } else {
+        document.getElementById('cpwHint').innerText = 'Enter your current password and choose a new one.';
+        document.getElementById('cpwCurrent').style.display = '';
+        document.getElementById('cpwNew1').style.display = '';
+        document.getElementById('cpwNew2').style.display = '';
+        document.getElementById('cpwBtn').style.display = '';
+    }
+    openModal('modalChangePassword');
+}
+async function submitChangePassword() {
+    const cur = document.getElementById('cpwCurrent').value;
+    const n1 = document.getElementById('cpwNew1').value;
+    const n2 = document.getElementById('cpwNew2').value;
+    const msg = document.getElementById('cpwMsg');
+    msg.innerText = '';
+    if (!cur || !n1 || !n2) { msg.innerText = 'Fill in all fields.'; return; }
+    if (n1.length < 6) { msg.innerText = 'New password must be at least 6 characters.'; return; }
+    if (n1 !== n2) { msg.innerText = 'New passwords do not match.'; return; }
+    try {
+        await window.SafeAuth.changePassword(cur, n1);
+        closeModal('modalChangePassword');
+        showToast('Password updated');
+    } catch (e) {
+        console.error(e);
+        msg.innerText = friendlyAuthError(e);
+    }
+}
+function openDeleteAccountModal() {
+    document.getElementById('delAccPassword').value = '';
+    document.getElementById('delAccMsg').innerText = '';
+    const info = window.SafeAuth ? window.SafeAuth.getUserInfo() : null;
+    document.getElementById('delAccPassword').style.display = (info && info.provider === 'google') ? 'none' : '';
+    openModal('modalDeleteAccount');
+}
+async function confirmDeleteAccount() {
+    const msg = document.getElementById('delAccMsg');
+    msg.innerText = '';
+    if (!confirm('This is permanent. Delete your account and erase this vault?')) return;
+    try {
+        const info = window.SafeAuth ? window.SafeAuth.getUserInfo() : null;
+        const pw = document.getElementById('delAccPassword').value;
+        if (window.SafeAuth) await window.SafeAuth.deleteAccount(pw);
+        await Promise.all([idbClear('meta'), idbClear('vaultFiles'), idbClear('fakeFiles'), idbClear('intruderLog')]);
+        localStorage.removeItem('sb_lockout');
+        localStorage.removeItem('sb_hidden_at');
+        location.reload();
+    } catch (e) {
+        console.error(e);
+        msg.innerText = friendlyAuthError(e);
+    }
+}
+
+// ---------- PIN setup (onboarding) ----------
+function isValidPin(v) { return /^\d{4}$/.test(String(v || '')); }
+let pinTimer = null;
+function cancelSetup() { runtime.pendingSetup = null; goTo('screen-welcome'); }
+
+function addPinDigit(d) {
+    if (pinTimer) clearTimeout(pinTimer);
+    if (tempInput.length >= 4) return;
+    tempInput += String(d);
+    updateDots('setupDots');
+    if (tempInput.length !== 4) return;
+    if (!runtime.pendingSetup) {
+        runtime.pendingSetup = { firstPin: tempInput };
+        document.getElementById('setupTitle').innerText = 'Confirm Your PIN';
+        document.getElementById('setupSub').innerText = 'Enter the same PIN again to confirm.';
+        pinTimer = setTimeout(() => { tempInput = ''; updateDots('setupDots'); }, 250);
+    } else if (tempInput === runtime.pendingSetup.firstPin) {
+        beginMasterKeyGeneration(tempInput);
+    } else {
+        document.getElementById('pinMsg').innerText = 'PINs do not match — try again';
+        runtime.pendingSetup = null;
+        document.getElementById('setupTitle').innerText = 'Create Your PIN';
+        document.getElementById('setupSub').innerText = 'This PIN encrypts your vault. There is no reset without your Master Key — memorize it.';
+        pinTimer = setTimeout(() => { tempInput = ''; updateDots('setupDots'); document.getElementById('pinMsg').innerText = ''; }, 900);
+    }
+}
+function deletePinDigit() { tempInput = tempInput.slice(0, -1); updateDots('setupDots'); }
+function updateDots(id, errState) {
+    const container = document.getElementById(id);
+    const dots = container.children;
+    for (let i = 0; i < 4; i++) {
+        dots[i].classList.remove('filled', 'err');
+        if (i < tempInput.length) dots[i].classList.add(errState ? 'err' : 'filled');
+    }
+}
+
+async function beginMasterKeyGeneration(pin) {
+    document.getElementById('displayKey').innerText = 'Generating...';
+    goTo('screen-recovery-key');
+    const vaultKeyRaw = await generateVaultKeyMaterial();
+    const pinSalt = randomBytes(16);
+    const pinKey = await deriveKeyFromPassphrase(pin, pinSalt);
+    const pinWrapped = await wrapVaultKey(vaultKeyRaw, pinKey);
+
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    const kb = randomBytes(64);
+    let masterKeyStr = '';
+    for (let i = 0; i < 64; i++) masterKeyStr += chars.charAt(kb[i] % chars.length);
+    const masterSalt = randomBytes(16);
+    const masterKeyDerived = await deriveKeyFromPassphrase(masterKeyStr, masterSalt);
+    const masterWrapped = await wrapVaultKey(vaultKeyRaw, masterKeyDerived);
+
+    runtime.pendingSetup = {
+        vaultKeyRaw,
+        pinSalt: bufToB64(pinSalt), pinWrapped,
+        masterSalt: bufToB64(masterSalt), masterWrapped,
+        masterKeyStr
+    };
+    document.getElementById('displayKey').innerText = masterKeyStr;
+}
+async function copyKey() {
+    const key = runtime.pendingSetup ? runtime.pendingSetup.masterKeyStr : null;
+    if (!key) return;
+    try { await navigator.clipboard.writeText(key); showToast('Key copied — store it somewhere safe.'); }
+    catch (e) { showToast('Copy unavailable — select the key manually.'); }
+}
+function toggleContinueBtn() { document.getElementById('btnFinishSetup').disabled = !document.getElementById('checkSaved').checked; }
+
+async function finishSetup() {
+    const p = runtime.pendingSetup;
+    if (!p) return;
+    meta = {
+        isSetup: true,
+        pinSalt: p.pinSalt, pinWrapped: p.pinWrapped,
+        masterSalt: p.masterSalt, masterWrapped: p.masterWrapped,
+        fakeConfigured: false, bioEnabled: false,
+        settings: { ...DEFAULT_SETTINGS },
+        profile: { ...DEFAULT_PROFILE }
+    };
+    await saveMeta();
+    runtime.vaultKeyRaw = p.vaultKeyRaw;
+    runtime.vaultKey = await importVaultKey(p.vaultKeyRaw);
+    runtime.mode = 'real';
+    runtime.pendingSetup = null;
+    applyDarkMode(true);
+    goTo('screen-home');
+    showToast('Vault created — your files are now encrypted.');
+    updateUI();
+}
+
+// ---------- Login ----------
+let wrongAttemptTimer = null;
+function addLoginDigit(d) {
+    if (isLockedOut()) return;
+    if (tempInput.length >= 4) return;
+    tempInput += d;
+    updateDots('loginDots');
+    if (tempInput.length === 4) setTimeout(attemptUnlock, 120);
+}
+function deleteLoginDigit() { tempInput = tempInput.slice(0, -1); updateDots('loginDots'); }
+
+async function attemptUnlock() {
+    const pin = tempInput;
+    // Try real vault
+    const pinSalt = new Uint8Array(b64ToBuf(meta.pinSalt));
+    const pinKey = await deriveKeyFromPassphrase(pin, pinSalt);
+    let raw = await unwrapVaultKey(meta.pinWrapped, pinKey);
+    if (raw) { await enterVault('real', raw); return; }
+
+    // Try fake vault
+    if (meta.fakeConfigured) {
+        const fSalt = new Uint8Array(b64ToBuf(meta.fakePinSalt));
+        const fKey = await deriveKeyFromPassphrase(pin, fSalt);
+        const fRaw = await unwrapVaultKey(meta.fakePinWrapped, fKey);
+        if (fRaw) { await enterVault('fake', fRaw); return; }
+    }
+
+    onWrongPin();
+}
+async function enterVault(mode, rawKey) {
+    runtime.mode = mode;
+    runtime.vaultKeyRaw = rawKey;
+    runtime.vaultKey = await importVaultKey(rawKey);
+    resetLockoutCounter();
+    goTo('screen-home');
+    updateUI();
+}
+function onWrongPin() {
+    updateDots('loginDots', true);
+    document.getElementById('loginMsg').innerText = 'Incorrect PIN';
+    registerFailedAttempt();
+    captureIntruderPhoto().catch(() => {});
+    if (wrongAttemptTimer) clearTimeout(wrongAttemptTimer);
+    wrongAttemptTimer = setTimeout(() => { tempInput = ''; updateDots('loginDots'); document.getElementById('loginMsg').innerText = ''; checkLockoutState(); }, 900);
+}
+function lockNow() {
+    runtime.mode = null; runtime.vaultKey = null; runtime.vaultKeyRaw = null;
+    document.getElementById('sideMenu').classList.remove('open');
+    document.getElementById('overlay').classList.remove('open');
+    goTo('screen-login');
+    refreshBiometricUI();
+}
+
+// ---------- Brute-force lockout ----------
+function getLockoutData() { try { return JSON.parse(localStorage.getItem('sb_lockout') || '{"count":0,"until":0}'); } catch (e) { return { count: 0, until: 0 }; } }
+function setLockoutData(d) { localStorage.setItem('sb_lockout', JSON.stringify(d)); }
+function resetLockoutCounter() { setLockoutData({ count: 0, until: 0 }); }
+function registerFailedAttempt() {
+    const d = getLockoutData();
+    d.count += 1;
+    const thresholds = [5, 8, 12, 16];
+    const durations = [30, 120, 600, 1800];
+    let idx = -1;
+    thresholds.forEach((t, i) => { if (d.count >= t) idx = i; });
+    if (idx >= 0) d.until = Date.now() + durations[idx] * 1000;
+    setLockoutData(d);
+}
+function isLockedOut() { return getLockoutData().until > Date.now(); }
+let lockoutInterval = null;
+function checkLockoutState() {
+    const d = getLockoutData();
+    const banner = document.getElementById('lockoutBanner');
+    const numpad = document.getElementById('loginNumpad');
+    if (lockoutInterval) clearInterval(lockoutInterval);
+    if (d.until > Date.now()) {
+        numpad.classList.add('disabled');
+        banner.style.display = 'block';
+        const update = () => {
+            const remaining = Math.max(0, Math.ceil((d.until - Date.now()) / 1000));
+            banner.innerText = `Too many attempts. Try again in ${remaining}s.`;
+            if (remaining <= 0) { clearInterval(lockoutInterval); numpad.classList.remove('disabled'); banner.style.display = 'none'; }
+        };
+        update();
+        lockoutInterval = setInterval(update, 1000);
+    } else {
+        numpad.classList.remove('disabled');
+        banner.style.display = 'none';
+    }
+}
+
+// ---------- Intruder selfie ----------
+async function captureIntruderPhoto() {
+    if (!meta || meta.settings.intruderSelfie === false) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000));
+    let stream;
+    try {
+        stream = await Promise.race([navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false }), timeout]);
+    } catch (e) { return; }
+    try {
+        const video = document.getElementById('intruderVideo');
+        video.srcObject = stream;
+        await video.play().catch(() => {});
+        await new Promise(r => setTimeout(r, 400));
+        const canvas = document.getElementById('intruderCanvas');
+        canvas.width = video.videoWidth || 320;
+        canvas.height = video.videoHeight || 240;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        const entries = await idbGetAll('intruderLog');
+        await idbPut('intruderLog', { id: Date.now(), ts: Date.now(), img: dataUrl });
+        if (entries.length >= 19) {
+            entries.sort((a, b) => a.ts - b.ts);
+            const toRemove = entries.slice(0, entries.length - 19);
+            for (const e of toRemove) await idbDelete('intruderLog', e.id);
+        }
+    } catch (e) { /* fail silently — never block login on camera errors */ }
+    finally { stream.getTracks().forEach(t => t.stop()); }
+}
+async function clearIntruderLog() { await idbClear('intruderLog'); renderSecurityScreen(); showToast('Break-in log cleared'); }
+
+// ---------- Recovery ----------
+async function recoverAccount() {
+    const key = document.getElementById('recoveryInput').value.trim();
+    const p1 = document.getElementById('newPinInput').value;
+    const p2 = document.getElementById('newPinConfirm').value;
+    const msgEl = document.getElementById('recoverMsg');
+    if (!isValidPin(p1) || p1 !== p2) { msgEl.innerText = 'New PIN must be 4 digits and match confirmation.'; return; }
+    if (!key) { msgEl.innerText = 'Enter your Master Key.'; return; }
+
+    const masterSalt = new Uint8Array(b64ToBuf(meta.masterSalt));
+    const masterKeyDerived = await deriveKeyFromPassphrase(key, masterSalt);
+    const raw = await unwrapVaultKey(meta.masterWrapped, masterKeyDerived);
+    if (!raw) { msgEl.innerText = 'Invalid Master Key.'; return; }
+
+    const newSalt = randomBytes(16);
+    const newPinKey = await deriveKeyFromPassphrase(p1, newSalt);
+    meta.pinSalt = bufToB64(newSalt);
+    meta.pinWrapped = await wrapVaultKey(raw, newPinKey);
+    await saveMeta();
+    resetLockoutCounter();
+    document.getElementById('recoveryInput').value = '';
+    document.getElementById('newPinInput').value = '';
+    document.getElementById('newPinConfirm').value = '';
+    msgEl.innerText = '';
+    goTo('screen-login');
+    showToast('PIN reset successful');
+}
+
+// ---------- Change PIN ----------
+function openChangePin() {
+    document.getElementById('cpCurrent').value = '';
+    document.getElementById('cpNew1').value = '';
+    document.getElementById('cpNew2').value = '';
+    document.getElementById('cpMsg').innerText = '';
+    document.getElementById('cpStep1').classList.add('active');
+    document.getElementById('cpStep2').classList.remove('active');
+    openModal('modalChangePin');
+}
+async function changePinStep1() {
+    const cur = document.getElementById('cpCurrent').value;
+    const saltKey = runtime.mode === 'fake' ? 'fakePinSalt' : 'pinSalt';
+    const wrapKey = runtime.mode === 'fake' ? 'fakePinWrapped' : 'pinWrapped';
+    const salt = new Uint8Array(b64ToBuf(meta[saltKey]));
+    const derived = await deriveKeyFromPassphrase(cur, salt);
+    const raw = await unwrapVaultKey(meta[wrapKey], derived);
+    if (!raw) { document.getElementById('cpMsg').innerText = 'Current PIN is incorrect.'; return; }
+    document.getElementById('cpMsg').innerText = '';
+    document.getElementById('cpStep1').classList.remove('active');
+    document.getElementById('cpStep2').classList.add('active');
+}
+async function changePinStep2() {
+    const p1 = document.getElementById('cpNew1').value;
+    const p2 = document.getElementById('cpNew2').value;
+    if (!isValidPin(p1) || p1 !== p2) { document.getElementById('cpMsg').innerText = 'PIN must be 4 digits and match.'; return; }
+    const newSalt = randomBytes(16);
+    const newKey = await deriveKeyFromPassphrase(p1, newSalt);
+    const wrapped = await wrapVaultKey(runtime.vaultKeyRaw, newKey);
+    if (runtime.mode === 'fake') { meta.fakePinSalt = bufToB64(newSalt); meta.fakePinWrapped = wrapped; }
+    else { meta.pinSalt = bufToB64(newSalt); meta.pinWrapped = wrapped; }
+    await saveMeta();
+    closeModal('modalChangePin');
+    showToast('PIN changed');
+}
+
+// ---------- Fake vault setup ----------
+function onFakeVaultToggle(checkbox) {
+    if (checkbox.checked && !meta.fakeConfigured) {
+        checkbox.checked = false; // wait for modal completion
+        document.getElementById('fvPin1').value = '';
+        document.getElementById('fvPin2').value = '';
+        document.getElementById('fvMsg').innerText = '';
+        openModal('modalFakeVault');
+    } else if (!checkbox.checked && meta.fakeConfigured) {
+        if (confirm('Disable Fake Vault? Its decoy files will be permanently deleted.')) {
+            meta.fakeConfigured = false;
+            delete meta.fakePinSalt; delete meta.fakePinWrapped;
+            saveMeta();
+            idbClear('fakeFiles');
+            renderSecurityScreen();
+            showToast('Fake Vault disabled');
+        } else {
+            checkbox.checked = true;
+        }
+    }
+}
+async function saveFakeVaultSetup() {
+    const p1 = document.getElementById('fvPin1').value;
+    const p2 = document.getElementById('fvPin2').value;
+    const msgEl = document.getElementById('fvMsg');
+    if (!isValidPin(p1) || p1 !== p2) { msgEl.innerText = 'PIN must be 4 digits and match.'; return; }
+    const realSalt = new Uint8Array(b64ToBuf(meta.pinSalt));
+    const realKey = await deriveKeyFromPassphrase(p1, realSalt);
+    if (await unwrapVaultKey(meta.pinWrapped, realKey)) { msgEl.innerText = 'Decoy PIN must be different from your real PIN.'; return; }
+
+    const fakeVaultRaw = await generateVaultKeyMaterial();
+    const fakeSalt = randomBytes(16);
+    const fakeKey = await deriveKeyFromPassphrase(p1, fakeSalt);
+    meta.fakeConfigured = true;
+    meta.fakePinSalt = bufToB64(fakeSalt);
+    meta.fakePinWrapped = await wrapVaultKey(fakeVaultRaw, fakeKey);
+    await saveMeta();
+    closeModal('modalFakeVault');
+    renderSecurityScreen();
+    showToast('Fake Vault enabled');
+}
+
+// ---------- Biometrics (WebAuthn PRF, feature-detected) ----------
+const BIO_FIXED_SALT = new TextEncoder().encode('safebox-prf-v1-fixed-salt-000000');
+function bioSupported() { return !!(window.PublicKeyCredential && navigator.credentials); }
+async function refreshBiometricUI() {
+    const btn = document.getElementById('btnBiometric');
+    if (btn) btn.style.display = (meta && meta.bioEnabled && bioSupported()) ? 'flex' : 'none';
+}
+async function onBioToggle(checkbox) {
+    if (checkbox.checked) {
+        const ok = await enableBiometric();
+        checkbox.checked = ok;
+        if (!ok) showToast("This device doesn't support secure biometric unlock.");
+    } else {
+        meta.bioEnabled = false;
+        delete meta.bioCredentialId; delete meta.bioWrapped;
+        await saveMeta();
+        refreshBiometricUI();
+    }
+}
+async function enableBiometric() {
+    if (!bioSupported()) return false;
+    try {
+        const cred = await navigator.credentials.create({
+            publicKey: {
+                challenge: randomBytes(32),
+                rp: { name: 'SafeBox' },
+                user: { id: randomBytes(16), name: 'vault-user', displayName: 'Vault User' },
+                pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+                authenticatorSelection: { userVerification: 'required', authenticatorAttachment: 'platform' },
+                extensions: { prf: {} },
+                timeout: 60000
+            }
+        });
+        const ext = cred.getClientExtensionResults();
+        if (!ext.prf || !ext.prf.enabled) return false;
+
+        const assertion = await navigator.credentials.get({
+            publicKey: {
+                challenge: randomBytes(32),
+                allowCredentials: [{ id: cred.rawId, type: 'public-key' }],
+                userVerification: 'required',
+                extensions: { prf: { eval: { first: BIO_FIXED_SALT } } }
+            }
+        });
+        const aext = assertion.getClientExtensionResults();
+        const secret = aext.prf && aext.prf.results && aext.prf.results.first;
+        if (!secret) return false;
+        const hashed = await crypto.subtle.digest('SHA-256', secret);
+        const bioKey = await crypto.subtle.importKey('raw', hashed, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+        const wrapped = await wrapVaultKey(runtime.vaultKeyRaw, bioKey);
+
+        meta.bioEnabled = true;
+        meta.bioCredentialId = bufToB64(cred.rawId);
+        meta.bioWrapped = wrapped;
+        await saveMeta();
+        refreshBiometricUI();
+        return true;
+    } catch (e) { console.warn('Biometric setup failed', e); return false; }
+}
+async function tryBiometricLogin() {
+    if (!meta.bioEnabled) return;
+    try {
+        const credId = b64ToBuf(meta.bioCredentialId);
+        const assertion = await navigator.credentials.get({
+            publicKey: {
+                challenge: randomBytes(32),
+                allowCredentials: [{ id: credId, type: 'public-key' }],
+                userVerification: 'required',
+                extensions: { prf: { eval: { first: BIO_FIXED_SALT } } }
+            }
+        });
+        const aext = assertion.getClientExtensionResults();
+        const secret = aext.prf && aext.prf.results && aext.prf.results.first;
+        if (!secret) throw new Error('no prf secret');
+        const hashed = await crypto.subtle.digest('SHA-256', secret);
+        const bioKey = await crypto.subtle.importKey('raw', hashed, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+        const raw = await unwrapVaultKey(meta.bioWrapped, bioKey);
+        if (!raw) throw new Error('unwrap failed');
+        await enterVault('real', raw);
+    } catch (e) { showToast('Biometric unlock failed — use your PIN.'); }
+}
+
+// ---------- Security screen render ----------
+async function renderSecurityScreen() {
+    document.getElementById('bioSub').innerText = bioSupported() ? 'Unlock with fingerprint or face' : 'Not supported on this device/browser';
+    document.getElementById('bioToggle').disabled = !bioSupported();
+    document.getElementById('bioToggle').checked = !!meta.bioEnabled;
+
+    document.getElementById('fakeVaultToggle').checked = !!meta.fakeConfigured;
+    document.getElementById('fakeVaultSub').innerText = meta.fakeConfigured ? 'Enabled — a different PIN opens a decoy vault' : 'Not configured';
+    document.getElementById('intruderToggle').checked = meta.settings.intruderSelfie !== false;
+    document.getElementById('autoLockToggle').checked = meta.settings.autoLock !== false;
+
+    let score = 40;
+    if (meta.fakeConfigured) score += 20;
+    if (meta.bioEnabled) score += 20;
+    if (meta.settings.intruderSelfie !== false) score += 20;
+    const label = score >= 100 ? 'Very Strong' : score >= 70 ? 'Strong' : score >= 50 ? 'Moderate' : 'Basic';
+    document.getElementById('securityLevelText').innerText = label;
+    document.getElementById('securityLevelBar').style.width = Math.min(score, 100) + '%';
+
+    const listEl = document.getElementById('intruderLogList');
+    if (runtime.mode !== 'real') { listEl.innerHTML = '<div style="font-size:13px; color: var(--text-muted); text-align:center; padding: 10px 0;">Unavailable</div>'; return; }
+    const entries = (await idbGetAll('intruderLog')).sort((a, b) => b.ts - a.ts);
+    if (!entries.length) { listEl.innerHTML = '<div style="font-size:13px; color: var(--text-muted); text-align:center; padding: 10px 0;">No break-in attempts recorded.</div>'; return; }
+    listEl.innerHTML = entries.map(e => `
+        <div style="display:flex; align-items:center; gap:10px; padding: 8px 0; border-bottom: 1px solid var(--border);">
+            <img src="${e.img}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">
+            <div style="flex:1;">
+                <div style="font-size:14px; font-weight:600;">Wrong PIN attempt</div>
+                <div style="font-size:12px; color: var(--text-muted);">${new Date(e.ts).toLocaleString()}</div>
+            </div>
+        </div>`).join('');
+}
+
+// ---------- Vault operations ----------
+function activeStoreName() { return runtime.mode === 'fake' ? 'fakeFiles' : 'vaultFiles'; }
+
+function openCategory(cat) {
+    currentCategory = cat;
+    let title = cat.charAt(0).toUpperCase() + cat.slice(1);
+    if (cat === 'all') title = 'All Files';
+    if (cat === 'recycle') title = 'Recycle Bin';
+    document.getElementById('catTitle').innerText = title;
+    document.getElementById('addCard').style.display = (cat === 'recycle' || cat === 'notes') ? 'none' : 'block';
+    document.getElementById('noteCard').style.display = (cat === 'notes') ? 'block' : 'none';
+    goTo('screen-category');
+    renderFiles();
+}
+
+async function handleFiles(input) {
+    const files = input.files;
+    if (!files.length) return;
+    showToast('Encrypting…');
+    for (const file of Array.from(files)) {
+        try {
+            const buf = await file.arrayBuffer();
+            const wrapped = await encryptBuffer(runtime.vaultKey, buf);
+            let category = 'docs';
+            if (file.type.startsWith('image/')) category = 'photos';
+            else if (file.type.startsWith('video/')) category = 'videos';
+            else if (file.type.startsWith('audio/')) category = 'audio';
+            const record = {
+                id: Date.now() + Math.random(),
+                name: file.name, size: file.size, mime: file.type || 'application/octet-stream',
+                category, date: new Date().toLocaleDateString(),
+                iv: wrapped.iv, ct: wrapped.ct, deleted: false
+            };
+            await idbPut(activeStoreName(), record);
+        } catch (e) { console.error(e); showToast('Failed to encrypt ' + file.name); }
+    }
+    showToast(`${files.length} file(s) added`);
+    input.value = '';
+    renderFiles();
+    updateUI();
+}
+
+async function renderFiles() {
+    const container = document.getElementById('fileListContainer');
+    const all = await idbGetAll(activeStoreName());
+    let list;
+    if (currentCategory === 'recycle') list = all.filter(f => f.deleted);
+    else if (currentCategory === 'all') list = all.filter(f => !f.deleted);
+    else list = all.filter(f => !f.deleted && f.category === currentCategory);
+
+    list.sort((a, b) => b.id - a.id);
+
+    if (!list.length) {
+        container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-muted);">Vault is empty<br>Nothing has been added here yet.</div>`;
+        return;
+    }
+    container.innerHTML = list.map(f => {
+        const icon = f.category === 'photos' ? '🖼️' : f.category === 'videos' ? '🎬' : f.category === 'audio' ? '🎵' : f.category === 'notes' ? '📝' : '📄';
+        return `
+        <div class="file-item">
+            <div class="file-thumb">${icon}</div>
+            <div class="file-info">
+                <div class="file-name">${escapeHtml(f.name)}</div>
+                <div class="file-meta">${f.category === 'notes' ? 'Note' : formatSize(f.size)} • ${f.date}</div>
+            </div>
+            ${f.category === 'notes' && !f.deleted ? `<button class="action-icon" onclick="openNoteEditor(${f.id})">✏️</button>` : `<button class="action-icon" onclick="previewFile(${f.id})">👁️</button>`}
+            <button class="action-icon" style="color:var(--danger)" onclick="deleteFile(${f.id})">🗑️</button>
+        </div>`;
+    }).join('');
+}
+
+async function previewFile(id) {
+    const rec = await idbGet(activeStoreName(), id);
+    if (!rec) return showToast('File not found');
+    try {
+        const buf = await decryptBuffer(runtime.vaultKey, rec.iv, rec.ct);
+        const blob = new Blob([buf], { type: rec.mime });
+        const url = URL.createObjectURL(blob);
+        const body = document.getElementById('previewBody');
+        currentPreview = { name: rec.name, blob };
+        if (rec.mime.startsWith('image/')) body.innerHTML = `<img src="${url}">`;
+        else if (rec.mime.startsWith('video/')) body.innerHTML = `<video src="${url}" controls autoplay></video>`;
+        else if (rec.mime.startsWith('audio/')) body.innerHTML = `<audio src="${url}" controls autoplay></audio>`;
+        else if (rec.mime === 'application/pdf') body.innerHTML = `<iframe src="${url}" style="width:100%;height:100%;border:none;background:#fff;"></iframe>`;
+        else { body.innerHTML = `<div style="color:#fff; text-align:center; padding: 30px;">No inline preview for this file type.<br><br>Use Download to save it.</div>`; }
+        document.getElementById('previewDownloadBtn').style.display = 'flex';
+        openPreviewModal();
+    } catch (e) { console.error(e); showToast('Could not decrypt file — data may be corrupted.'); }
+}
+function openPreviewModal() { document.getElementById('previewModal').classList.add('open'); }
+function closePreview() {
+    document.getElementById('previewModal').classList.remove('open');
+    document.getElementById('previewBody').innerHTML = '';
+    currentPreview = null;
+}
+function downloadCurrentPreview() {
+    if (!currentPreview) return;
+    const url = URL.createObjectURL(currentPreview.blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = currentPreview.name; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+async function deleteFile(id) {
+    const store = activeStoreName();
+    const rec = await idbGet(store, id);
+    if (!rec) return;
+    if (rec.deleted) {
+        if (confirm('Delete permanently? This cannot be undone.')) {
+            await idbDelete(store, id);
+            showToast('Deleted permanently');
+        }
+    } else {
+        rec.deleted = true;
+        await idbPut(store, rec);
+        showToast('Moved to Recycle Bin');
+    }
+    renderFiles();
+    updateUI();
+}
+
+// ---------- Notes ----------
+let editingNoteId = null;
+async function openNoteEditor(id) {
+    editingNoteId = id;
+    document.getElementById('noteTitle').value = '';
+    document.getElementById('noteBody').value = '';
+    if (id) {
+        const rec = await idbGet(activeStoreName(), id);
+        if (rec) {
+            const buf = await decryptBuffer(runtime.vaultKey, rec.iv, rec.ct);
+            const text = new TextDecoder().decode(buf);
+            document.getElementById('noteTitle').value = rec.name;
+            document.getElementById('noteBody').value = text;
+        }
+    }
+    openModal('modalNote');
+}
+async function saveNote() {
+    const title = document.getElementById('noteTitle').value.trim() || 'Untitled Note';
+    const body = document.getElementById('noteBody').value;
+    const buf = new TextEncoder().encode(body).buffer;
+    const wrapped = await encryptBuffer(runtime.vaultKey, buf);
+    const record = {
+        id: editingNoteId || (Date.now() + Math.random()),
+        name: title, size: buf.byteLength, mime: 'text/plain', category: 'notes',
+        date: new Date().toLocaleDateString(), iv: wrapped.iv, ct: wrapped.ct, deleted: false
+    };
+    await idbPut(activeStoreName(), record);
+    closeModal('modalNote');
+    editingNoteId = null;
+    renderFiles();
+    updateUI();
+    showToast('Note saved');
+}
+
+// ---------- Data management ----------
+function wipeData() {
+    if (confirm('⚠️ Erase all files in this vault?')) {
+        if (confirm('Really? This cannot be undone.')) {
+            idbClear(activeStoreName()).then(() => { renderFiles(); updateUI(); showToast('All files erased'); });
+        }
+    }
+}
+function factoryReset() {
+    if (!confirm('⚠️ This deletes your PIN, Master Key, Fake Vault, and ALL files permanently. Continue?')) return;
+    if (!confirm('This cannot be undone. Are you absolutely sure?')) return;
+    Promise.all([idbClear('meta'), idbClear('vaultFiles'), idbClear('fakeFiles'), idbClear('intruderLog')]).then(() => {
+        localStorage.removeItem('sb_lockout');
+        localStorage.removeItem('sb_hidden_at');
+        location.reload();
+    });
+}
+
+// ---------- UI helpers ----------
+async function updateUI() {
+    const all = await idbGetAll(activeStoreName());
+    const live = all.filter(f => !f.deleted);
+    const countOf = c => live.filter(f => f.category === c).length;
+    document.getElementById('count-photos').innerText = countOf('photos') + ' items';
+    document.getElementById('count-videos').innerText = countOf('videos') + ' items';
+    document.getElementById('count-docs').innerText = countOf('docs') + ' items';
+    document.getElementById('count-audio').innerText = countOf('audio') + ' items';
+    document.getElementById('count-notes').innerText = countOf('notes') + ' items';
+
+    let totalBytes = 0;
+    all.forEach(f => totalBytes += (f.size || 0));
+    document.getElementById('storageText').innerText = formatSize(totalBytes);
+
+    if (navigator.storage && navigator.storage.estimate) {
+        try {
+            const est = await navigator.storage.estimate();
+            const percent = est.quota ? Math.min((est.usage / est.quota) * 100, 100).toFixed(1) : 0;
+            document.getElementById('storagePercent').innerText = `${percent}% of ${formatSize(est.quota || 0)}`;
+            document.getElementById('storageBar').style.width = percent + '%';
+        } catch (e) { document.getElementById('storagePercent').innerText = 'Usage unavailable'; }
+    }
+}
+function escapeHtml(value) { return String(value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); }
+function formatSize(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+    const k = 1024; const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+function showToast(msg) {
+    const x = document.getElementById('toast');
+    x.innerText = msg; x.className = 'show';
+    setTimeout(() => { x.className = x.className.replace('show', ''); }, 3000);
+}
+</script>
+</body>
+</html>
